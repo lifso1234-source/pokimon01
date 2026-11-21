@@ -112,7 +112,7 @@ export function useWildSpawner({
               encounter.species?.name ?? `Wild #${encounter.speciesId}`,
             type1: encounter.species?.type1 ?? "normal",
             level,
-            expiresAt: now + 35_000,
+            expiresAt: now + 10000,
             spriteUrl: encounter.species?.spriteUrl ?? "",
           },
         ];
@@ -120,7 +120,7 @@ export function useWildSpawner({
     };
 
     spawnTick();
-    const timer = setInterval(spawnTick, 6_000);
+    const timer = setInterval(spawnTick, 3000);
     return () => clearInterval(timer);
   }, [enabled, tileMapRef, latestPosRef, encounters, npcs]);
 
