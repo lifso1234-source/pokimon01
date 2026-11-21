@@ -8,6 +8,7 @@ import { useWildSpawner } from "../hooks/useWildSpawner";
 import type { Battle, EncounterRule, MapTile, Npc } from "../types/game.types";
 import { renderMapScene } from "../utils/mapRenderer";
 import { MiniMap } from "./miniMap";
+import { clickRadius } from "../constants/mapConfig";
 
 interface GameMapViewProps {
   activeBattle: Battle | null;
@@ -123,6 +124,7 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
     onBattleStart,
     onSelectNpc,
     onNotify,
+    clickRadius,
   });
 
   // 4. Draw frame

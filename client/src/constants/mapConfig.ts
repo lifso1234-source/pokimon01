@@ -36,3 +36,5 @@ export const SPAWNABLE_TERRAINS: ReadonlySet<Terrain> = new Set([
   "cave",
   "sand",
 ]);
+
+export const clickRadius: number = 3;

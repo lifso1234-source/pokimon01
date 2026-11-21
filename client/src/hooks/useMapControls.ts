@@ -4,7 +4,6 @@ import { gameApi } from "../api/gameApi";
 import { DIR_DELTAS, HALF_VIEW, TILE_PX } from "../constants/mapConfig";
 import type {
   Battle,
-  MapTile,
   Npc,
   PlayerState,
   WildSpawn,
@@ -24,6 +23,7 @@ interface UseMapControlsParams {
   onBattleStart: (battle: Battle) => void;
   onSelectNpc: (npc: Npc) => void;
   onNotify: (msg: string) => void;
+  clickRadius?: number; // Configurable tile radius for clicking wild Pokémon
 }
 
 export function useMapControls({
@@ -39,6 +39,7 @@ export function useMapControls({
   onBattleStart,
   onSelectNpc,
   onNotify,
+  clickRadius = 2,
 }: UseMapControlsParams) {
   const [facing, setFacing] = useState<"up" | "down" | "left" | "right">("down");
 
@@ -106,7 +107,15 @@ export function useMapControls({
         const fx = latestPosRef.current.x + delta.dx;
         const fy = latestPosRef.current.y + delta.dy;
         const targetNpc = npcs.find((n) => n.posX === fx && n.posY === fy);
-        if (targetNpc) interactWithNpc(targetNpc);
+        if (targetNpc) {
+          interactWithNpc(targetNpc);
+          return;
+        }
+        const targetSpawn = spawns.find((s) => s.x === fx && s.y === fy);
+        if (targetSpawn) {
+          updatePosition(targetSpawn.x, targetSpawn.y);
+          triggerWildBattle(targetSpawn);
+        }
         return;
       }
 
@@ -153,13 +162,37 @@ export function useMapControls({
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!player) return;
+      if (!player || activeBattle) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const col = Math.floor((e.clientX - rect.left) / TILE_PX);
       const row = Math.floor((e.clientY - rect.top) / TILE_PX);
       const wx = player.posX - HALF_VIEW + col;
       const wy = player.posY - HALF_VIEW + row;
 
+      // 1. Check if a wild Pokémon spawn was clicked within clickRadius
+      const clickedSpawn = spawns.find((s) => s.x === wx && s.y === wy);
+      if (clickedSpawn) {
+        const dx = clickedSpawn.x - player.posX;
+        const dy = clickedSpawn.y - player.posY;
+        // Chebyshev distance (square radius: e.g., 2 = 5x5 box around player)
+        // Swap to `Math.abs(dx) + Math.abs(dy)` if you prefer Manhattan distance like NPCs
+        const dist = Math.max(Math.abs(dx), Math.abs(dy));
+
+        if (dist <= clickRadius) {
+          if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) {
+            setFacing(dx > 0 ? "right" : "left");
+          } else if (dy !== 0) {
+            setFacing(dy > 0 ? "down" : "up");
+          }
+          updatePosition(clickedSpawn.x, clickedSpawn.y);
+          triggerWildBattle(clickedSpawn);
+        } else {
+          onNotify(`Walk within ${clickRadius} tiles to battle!`);
+        }
+        return;
+      }
+
+      // 2. Existing NPC click interaction
       const clickedNpc = npcs.find((n) => n.posX === wx && n.posY === wy);
       if (clickedNpc && clickedNpc.posX != null && clickedNpc.posY != null) {
         const dist =
@@ -172,7 +205,17 @@ export function useMapControls({
         }
       }
     },
-    [player, npcs, interactWithNpc, onNotify],
+    [
+      player,
+      activeBattle,
+      spawns,
+      npcs,
+      clickRadius,
+      updatePosition,
+      triggerWildBattle,
+      interactWithNpc,
+      onNotify,
+    ],
   );
 
   return { facing, handleCanvasClick };
