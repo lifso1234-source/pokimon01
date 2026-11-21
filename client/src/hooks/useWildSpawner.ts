@@ -73,11 +73,12 @@ export function useWildSpawner({
             if (occupiedByNpc.has(key) || occupiedBySpawn.has(key)) continue;
 
             const tile = tileMapRef.current.get(key);
-            const isAquatic =
+            const isWater =
               tile?.terrain === "water" || tile?.terrain === "deep water";
+
             if (
               tile &&
-              (tile.isWalkable || isAquatic) &&
+              (tile.isWalkable || isWater) &&
               SPAWNABLE_TERRAINS.has(tile.terrain)
             ) {
               candidates.push(tile);
@@ -94,8 +95,14 @@ export function useWildSpawner({
         );
         if (terrainPool.length === 0) return visibleActive;
 
+        const totalWeight = terrainPool.reduce(
+          (sum, e) => sum + (e.weight ?? 1),
+          0,
+        );
+        let roll = Math.random() * totalWeight;
         const encounter =
-          terrainPool[Math.floor(Math.random() * terrainPool.length)];
+          terrainPool.find((e) => (roll -= e.weight ?? 1) < 0) ??
+          terrainPool[0];
         if (!encounter) return visibleActive;
 
         const level =

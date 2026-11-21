@@ -5,7 +5,9 @@ import {
   TILE_PX,
   VIEW_SIZE,
 } from "../constants/mapConfig";
+import type { Boat } from "../hooks/useBoats";
 import type { MapTile, Npc, Terrain, WildSpawn } from "../types/game.types";
+import { drawBoatTile } from "./boatRenderer";
 
 interface RenderSceneParams {
   ctx: CanvasRenderingContext2D;
@@ -17,6 +19,8 @@ interface RenderSceneParams {
   tileMap: Map<string, MapTile>;
   npcs: Npc[];
   spawns: WildSpawn[];
+  boats?: Boat[];
+  boardedBoatId?: string | null;
   onSpriteLoad?: () => void;
 }
 
@@ -35,7 +39,6 @@ function getCachedSprite(
   }
 
   const img = new Image();
-  img.crossOrigin = "anonymous";
   img.onload = () => {
     onLoad?.();
   };
@@ -144,6 +147,8 @@ export function renderMapScene({
   tileMap,
   npcs,
   spawns,
+  boats,
+  boardedBoatId,
   onSpriteLoad,
 }: RenderSceneParams) {
   ctx.clearRect(0, 0, width, height);
@@ -192,13 +197,11 @@ export function renderMapScene({
     const sprite = getCachedSprite(sp.spriteUrl, onSpriteLoad);
 
     if (sprite) {
-      // Subtle ground shadow under the Pokémon
       ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
       ctx.beginPath();
       ctx.ellipse(cx, py + TILE_PX - 8, 14, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw crisp pixel-art creature sprite
       const pad = 4;
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(
@@ -209,7 +212,6 @@ export function renderMapScene({
         TILE_PX - pad * 2,
       );
 
-      // Compact level pill at bottom of tile
       ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
       ctx.fillRect(cx - 15, py + TILE_PX - 13, 30, 11);
       ctx.fillStyle = "#f8fafc";
@@ -217,7 +219,6 @@ export function renderMapScene({
       ctx.textAlign = "center";
       ctx.fillText(`Lv.${sp.level}`, cx, py + TILE_PX - 4);
     } else {
-      // Fallback red dot while sprite loads or if spriteUrl is empty
       ctx.fillStyle = "#ef4444";
       ctx.beginPath();
       ctx.arc(cx, cy, 14, 0, Math.PI * 2);
@@ -270,6 +271,21 @@ export function renderMapScene({
     ctx.font = "bold 10px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(npc.name.split(" ")[0], cx, py + 10);
+  }
+
+  // 3.5 Boats (drawn before Player so player stands on top of the deck)
+  for (const boat of boats ?? []) {
+    const col = boat.x - startX;
+    const row = boat.y - startY;
+    if (col < 0 || col >= VIEW_SIZE || row < 0 || row >= VIEW_SIZE) continue;
+
+    drawBoatTile(
+      ctx,
+      boat,
+      col * TILE_PX,
+      row * TILE_PX,
+      boat.id === boardedBoatId,
+    );
   }
 
   // 4. Player Sprite (Centered)

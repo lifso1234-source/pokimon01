@@ -1,14 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { extractApiError } from "../api/axiosClient";
 import { gameApi } from "../api/gameApi";
-import { TILE_PX, VIEW_SIZE } from "../constants/mapConfig";
+import {
+  clickRadius,
+  HALF_VIEW,
+  TILE_PX,
+  VIEW_SIZE,
+} from "../constants/mapConfig";
 import { usePlayer } from "../context/PlayerContext";
+import { useBoats } from "../hooks/useBoats";
 import { useMapControls } from "../hooks/useMapControls";
 import { useWildSpawner } from "../hooks/useWildSpawner";
 import type { Battle, EncounterRule, MapTile, Npc } from "../types/game.types";
 import { renderMapScene } from "../utils/mapRenderer";
 import { MiniMap } from "./MiniMap";
-import { clickRadius } from "../constants/mapConfig";
 
 interface GameMapViewProps {
   activeBattle: Battle | null;
@@ -32,6 +37,7 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
   const [encounters, setEncounters] = useState<EncounterRule[]>([]);
 
   const [spriteTick, setSpriteTick] = useState(0);
+  const [animTick, setAnimTick] = useState(0);
 
   const lastSyncedPosRef = useRef<{ x: number; y: number } | null>(null);
   const latestPosRef = useRef<{ x: number; y: number }>({
@@ -85,9 +91,23 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
     };
   }, [onNotify]);
 
-  // 2. Periodic 30s coordinate sync
+  // 3. Wild spawns, boats & player controls
+  const { spawns, removeSpawn } = useWildSpawner({
+    enabled: tilesLoaded && Boolean(player),
+    tileMapRef,
+    latestPosRef,
+    encounters,
+    npcs,
+  });
+
+  const { boats, boardedBoatId, setBoardedBoatId, moveBoat } = useBoats({
+    tilesLoaded,
+    tileMapRef,
+  });
+
+  // 2. Periodic 30s coordinate sync (only when on land, never while sailing)
   useEffect(() => {
-    if (!player) return;
+    if (!player || boardedBoatId) return;
     const interval = setInterval(() => {
       const cur = latestPosRef.current;
       const last = lastSyncedPosRef.current;
@@ -97,21 +117,39 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
           .then(() => {
             lastSyncedPosRef.current = { x: cur.x, y: cur.y };
           })
-          .catch(() => { });
+          .catch(() => {});
       }
     }, 30_000);
 
     return () => clearInterval(interval);
-  }, [player]);
+  }, [player, boardedBoatId]);
 
-  // 3. Wild spawns & player controls
-  const { spawns, removeSpawn } = useWildSpawner({
-    enabled: tilesLoaded && Boolean(player),
-    tileMapRef,
-    latestPosRef,
-    encounters,
-    npcs,
-  });
+  // Keep player locked onto the boat or pre-battle position when a battle ends/flees
+  useEffect(() => {
+    if (!player || activeBattle) return;
+
+    if (boardedBoatId) {
+      const boat = boats.find((b) => b.id === boardedBoatId);
+      if (boat && (player.posX !== boat.x || player.posY !== boat.y)) {
+        updatePosition(boat.x, boat.y);
+      }
+      return;
+    }
+
+    const expected = latestPosRef.current;
+    if (player.posX !== expected.x || player.posY !== expected.y) {
+      setPlayer((current) =>
+        current ? { ...current, posX: expected.x, posY: expected.y } : current,
+      );
+    }
+  }, [
+    activeBattle,
+    boardedBoatId,
+    boats,
+    player,
+    updatePosition,
+    setPlayer,
+  ]);
 
   const { facing, handleCanvasClick } = useMapControls({
     player,
@@ -127,7 +165,29 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
     onSelectNpc,
     onNotify,
     clickRadius,
+    boats,
+    boardedBoatId,
+    setBoardedBoatId,
+    moveBoat,
   });
+
+  // Animate water particles whenever a boat is visible in the viewport
+  useEffect(() => {
+    if (!player || boats.length === 0) return;
+
+    const hasVisibleBoat = boats.some(
+      (b) =>
+        Math.abs(b.x - player.posX) <= HALF_VIEW &&
+        Math.abs(b.y - player.posY) <= HALF_VIEW,
+    );
+    if (!hasVisibleBoat) return;
+
+    const timer = setInterval(() => {
+      setAnimTick((t) => (t + 1) % 1000);
+    }, 120);
+
+    return () => clearInterval(timer);
+  }, [player, boats]);
 
   // 4. Draw frame
   useEffect(() => {
@@ -146,9 +206,21 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
       tileMap: tileMapRef.current,
       npcs,
       spawns,
+      boats,
+      boardedBoatId,
       onSpriteLoad: () => setSpriteTick((t) => t + 1),
     });
-  }, [player, tilesLoaded, facing, npcs, spawns, spriteTick]);
+  }, [
+    player,
+    tilesLoaded,
+    facing,
+    npcs,
+    spawns,
+    boats,
+    boardedBoatId,
+    spriteTick,
+    animTick,
+  ]);
 
   if (!player) return null;
 
@@ -171,9 +243,14 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
       </div>
       <div style={styles.hudBar}>
         <span>
-          Pos: ({player.posX}, {player.posY})
+          Pos: ({player.posX}, {player.posY}){" "}
+          {boardedBoatId ? "• ⛵ Sailing" : ""}
         </span>
-        <span>Move: WASD / Arrows • Interact: Space / Click NPC</span>
+        <span>
+          {boardedBoatId
+            ? "WASD / Arrows: Sail • Shift: Exit Boat"
+            : "Move: WASD / Arrows • Interact: Space / Click"}
+        </span>
       </div>
     </div>
   );
