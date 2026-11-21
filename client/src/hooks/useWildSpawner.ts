@@ -73,9 +73,11 @@ export function useWildSpawner({
             if (occupiedByNpc.has(key) || occupiedBySpawn.has(key)) continue;
 
             const tile = tileMapRef.current.get(key);
+            const isAquatic =
+              tile?.terrain === "water" || tile?.terrain === "deep water";
             if (
               tile &&
-              tile.isWalkable &&
+              (tile.isWalkable || isAquatic) &&
               SPAWNABLE_TERRAINS.has(tile.terrain)
             ) {
               candidates.push(tile);

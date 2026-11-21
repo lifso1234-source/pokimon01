@@ -2,12 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { extractApiError } from "../api/axiosClient";
 import { gameApi } from "../api/gameApi";
 import { DIR_DELTAS, HALF_VIEW, TILE_PX } from "../constants/mapConfig";
-import type {
-  Battle,
-  Npc,
-  PlayerState,
-  WildSpawn,
-} from "../types/game.types";
+import type { Battle, Npc, PlayerState, WildSpawn } from "../types/game.types";
 import type { TileLookup } from "./useWildSpawner";
 
 interface UseMapControlsParams {
@@ -41,7 +36,9 @@ export function useMapControls({
   onNotify,
   clickRadius = 2,
 }: UseMapControlsParams) {
-  const [facing, setFacing] = useState<"up" | "down" | "left" | "right">("down");
+  const [facing, setFacing] = useState<"up" | "down" | "left" | "right">(
+    "down",
+  );
 
   const interactWithNpc = useCallback(
     async (npc: Npc) => {
@@ -65,8 +62,12 @@ export function useMapControls({
     async (spawn: WildSpawn) => {
       if (!player || activeBattle) return;
       try {
-        await gameApi.movePlayer(player.id, { x: spawn.x, y: spawn.y });
-        lastSyncedPosRef.current = { x: spawn.x, y: spawn.y };
+        const cur = latestPosRef.current;
+        const last = lastSyncedPosRef.current;
+        if (!last || cur.x !== last.x || cur.y !== last.y) {
+          await gameApi.movePlayer(player.id, { x: cur.x, y: cur.y });
+          lastSyncedPosRef.current = { x: cur.x, y: cur.y };
+        }
 
         const battle = await gameApi.startWildBattle({
           playerId: player.id,
@@ -79,7 +80,15 @@ export function useMapControls({
         onNotify(extractApiError(err));
       }
     },
-    [player, activeBattle, lastSyncedPosRef, removeSpawn, onBattleStart, onNotify],
+    [
+      player,
+      activeBattle,
+      latestPosRef,
+      lastSyncedPosRef,
+      removeSpawn,
+      onBattleStart,
+      onNotify,
+    ],
   );
 
   useEffect(() => {
@@ -113,7 +122,7 @@ export function useMapControls({
         }
         const targetSpawn = spawns.find((s) => s.x === fx && s.y === fy);
         if (targetSpawn) {
-          updatePosition(targetSpawn.x, targetSpawn.y);
+          // updatePosition(targetSpawn.x, targetSpawn.y);
           triggerWildBattle(targetSpawn);
         }
         return;
@@ -174,8 +183,6 @@ export function useMapControls({
       if (clickedSpawn) {
         const dx = clickedSpawn.x - player.posX;
         const dy = clickedSpawn.y - player.posY;
-        // Chebyshev distance (square radius: e.g., 2 = 5x5 box around player)
-        // Swap to `Math.abs(dx) + Math.abs(dy)` if you prefer Manhattan distance like NPCs
         const dist = Math.max(Math.abs(dx), Math.abs(dy));
 
         if (dist <= clickRadius) {
@@ -184,7 +191,7 @@ export function useMapControls({
           } else if (dy !== 0) {
             setFacing(dy > 0 ? "down" : "up");
           }
-          updatePosition(clickedSpawn.x, clickedSpawn.y);
+          // ← Removed `updatePosition(clickedSpawn.x, clickedSpawn.y);` from here
           triggerWildBattle(clickedSpawn);
         } else {
           onNotify(`Walk within ${clickRadius} tiles to battle!`);
@@ -211,7 +218,6 @@ export function useMapControls({
       spawns,
       npcs,
       clickRadius,
-      updatePosition,
       triggerWildBattle,
       interactWithNpc,
       onNotify,
