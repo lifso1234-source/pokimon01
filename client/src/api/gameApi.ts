@@ -54,7 +54,7 @@ export const gameApi = {
   listTiles: async (): Promise<MapTile[]> =>
     (
       await axiosClient.get<MapTile[]>("/map/tiles", {
-        params: { limit: 30000 },
+        params: { limit: 50000 },
       })
     ).data,
 
