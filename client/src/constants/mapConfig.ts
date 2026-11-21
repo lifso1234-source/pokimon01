@@ -1,8 +1,8 @@
 import type { Terrain } from "../types/game.types";
 
-export const VIEW_SIZE = 14; // 15x15 centered camera
-export const HALF_VIEW = Math.floor(VIEW_SIZE / 2); // 7
-export const TILE_PX = 56;
+export const VIEW_SIZE = 14; // use 14, to check use 50
+export const HALF_VIEW = Math.floor(VIEW_SIZE / 2);
+export const TILE_PX = 56; // use 56, to check use 14
 
 export const TERRAIN_COLORS: Record<Terrain, string> = {
   grass: "#2d6a4f",

@@ -7,6 +7,7 @@ import { useMapControls } from "../hooks/useMapControls";
 import { useWildSpawner } from "../hooks/useWildSpawner";
 import type { Battle, EncounterRule, MapTile, Npc } from "../types/game.types";
 import { renderMapScene } from "../utils/mapRenderer";
+import { MiniMap } from "./miniMap";
 
 interface GameMapViewProps {
   activeBattle: Battle | null;
@@ -148,13 +149,21 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
 
   return (
     <div style={styles.container}>
-      <canvas
-        ref={canvasRef}
-        width={VIEW_SIZE * TILE_PX}
-        height={VIEW_SIZE * TILE_PX}
-        onClick={handleCanvasClick}
-        style={styles.canvas}
-      />
+      <div style={styles.viewportWrapper}>
+        <canvas
+          ref={canvasRef}
+          width={VIEW_SIZE * TILE_PX}
+          height={VIEW_SIZE * TILE_PX}
+          onClick={handleCanvasClick}
+          style={styles.canvas}
+        />
+        <MiniMap
+          tileMap={tileMapRef.current}
+          tilesLoaded={tilesLoaded}
+          playerX={player.posX}
+          playerY={player.posY}
+        />
+      </div>
       <div style={styles.hudBar}>
         <span>
           Pos: ({player.posX}, {player.posY})
@@ -184,5 +193,10 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     fontSize: 12,
     color: "#94a3b8",
+  },
+  viewportWrapper: {
+    position: "relative",
+    width: VIEW_SIZE * TILE_PX,
+    height: VIEW_SIZE * TILE_PX,
   },
 };

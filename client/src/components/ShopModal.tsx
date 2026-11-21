@@ -26,6 +26,7 @@ export const ShopModal: React.FC<Props> = ({ npc, onClose }) => {
     } catch (error) { setMessage(extractApiError(error)); }
     finally { setBusy(false); }
   };
+
   return <div style={styles.overlay}><div style={styles.modal}>
     <header style={styles.header}><strong>{npc.name}'s Shop</strong><strong style={{ color: "#4ade80" }}>${player.money}</strong></header>
     {message && <div style={styles.message}>{message}</div>}

@@ -1,4 +1,4 @@
-﻿import { IsNull } from "typeorm";
+﻿import { IsNull, In, LessThanOrEqual } from "typeorm";
 import { AppDataSource } from "../data-source";
 import {
   Creature,
@@ -40,7 +40,10 @@ export const playerService = {
   async list(q: ListPlayersQuery) {
     const qb = crud.repo().createQueryBuilder("p");
     if (q.q) {
-      qb.andWhere("(p.username ILIKE :s OR p.trainerName ILIKE :s OR p.email ILIKE :s)", { s: `%${q.q}%` });
+      qb.andWhere(
+        "(p.username ILIKE :s OR p.trainerName ILIKE :s OR p.email ILIKE :s)",
+        { s: `%${q.q}%` },
+      );
     }
     applySort(qb, "p", q.sortBy, q.order, "createdAt");
     return paginate(qb, q);
@@ -68,12 +71,39 @@ export const playerService = {
 
   async register(dto: RegisterDto) {
     return AppDataSource.transaction(async (manager) => {
-      const starter = await manager.findOneBy(Species, { id: dto.starterSpeciesId });
-      if (!starter) throw new AppError(400, "INVALID_STARTER", "Starter species does not exist");
+      // 1. Run all initial validation & lookup reads in parallel (1 round-trip batch)
+      const [starter, spawnTile, starterMoves, starterItems] =
+        await Promise.all([
+          manager.findOneBy(Species, { id: dto.starterSpeciesId }),
+          manager.findOneBy(MapTile, { x: 0, y: 0 }),
+          manager.find(SpeciesMove, {
+            where: {
+              speciesId: dto.starterSpeciesId,
+              level: LessThanOrEqual(5),
+            },
+            relations: { move: true },
+            order: { level: "ASC" },
+            take: 4,
+          }),
+          manager.findBy(Item, { name: In(["Catch Ball", "Potion"]) }),
+        ]);
 
-      const spawnTile = await manager.findOneBy(MapTile, { x: 0, y: 0 });
-      if (!spawnTile) throw new AppError(500, "MISSING_SPAWN", "Default spawn tile (0,0) does not exist");
+      if (!starter) {
+        throw new AppError(
+          400,
+          "INVALID_STARTER",
+          "Starter species does not exist",
+        );
+      }
+      if (!spawnTile) {
+        throw new AppError(
+          500,
+          "MISSING_SPAWN",
+          "Default spawn tile (0,0) does not exist",
+        );
+      }
 
+      // 2. Save player
       const player = manager.create(Player, {
         email: dto.email,
         username: dto.username,
@@ -87,46 +117,87 @@ export const playerService = {
       });
       await manager.save(player);
 
-      const starterMoves = await manager.find(SpeciesMove, {
-        where: { speciesId: starter.id },
-        relations: { move: true },
-        order: { level: "ASC" },
-        take: 4,
-      });
-
+      // 3. Build creature + attach already-fetched move & species objects in memory
+      const validMoves = starterMoves.filter((sm) => sm.move);
       const creature = manager.create(Creature, {
         ownerId: player.id,
         speciesId: starter.id,
+        species: starter,
         level: 5,
         experience: 125,
         currentHp: calcMaxHp(starter.baseHp, 5),
         partySlot: 1,
         storageSlot: null,
-        moves: starterMoves
-          .filter((sm) => sm.level <= 5 && sm.move)
-          .map((sm, idx) =>
-            manager.create(CreatureMove, {
-              slot: idx + 1,
-              moveId: sm.moveId,
-              currentPp: sm.move!.maxPp,
-            }),
-          ),
+        moves: validMoves.map((sm, idx) =>
+          manager.create(CreatureMove, {
+            slot: idx + 1,
+            moveId: sm.moveId,
+            move: sm.move!,
+            currentPp: sm.move!.maxPp,
+          }),
+        ),
       });
-      await manager.save(creature);
 
-      const starterItems = await manager.find(Item);
+      // 4. Build inventory & hotbar arrays in memory + attach already-fetched item objects
       const ball = starterItems.find((i) => i.name === "Catch Ball");
       const potion = starterItems.find((i) => i.name === "Potion");
+
+      const inventory: Inventory[] = [];
+      const hotbarSlots: HotbarSlot[] = [];
+
       if (ball) {
-        await manager.save(manager.create(Inventory, { playerId: player.id, itemId: ball.id, quantity: 5 }));
-        await manager.save(manager.create(HotbarSlot, { playerId: player.id, slot: 1, itemId: ball.id }));
-      }
-      if (potion) {
-        await manager.save(manager.create(Inventory, { playerId: player.id, itemId: potion.id, quantity: 3 }));
-        await manager.save(manager.create(HotbarSlot, { playerId: player.id, slot: 2, itemId: potion.id }));
+        inventory.push(
+          manager.create(Inventory, {
+            playerId: player.id,
+            itemId: ball.id,
+            item: ball,
+            quantity: 5,
+          }),
+        );
+        hotbarSlots.push(
+          manager.create(HotbarSlot, {
+            playerId: player.id,
+            slot: 1,
+            itemId: ball.id,
+            item: ball,
+          }),
+        );
       }
 
-      return this.getFullState(player.id);
+      if (potion) {
+        inventory.push(
+          manager.create(Inventory, {
+            playerId: player.id,
+            itemId: potion.id,
+            item: potion,
+            quantity: 3,
+          }),
+        );
+        hotbarSlots.push(
+          manager.create(HotbarSlot, {
+            playerId: player.id,
+            slot: 2,
+            itemId: potion.id,
+            item: potion,
+          }),
+        );
+      }
+
+      // 5. Batch-save creature, inventory, and hotbar slots in parallel
+      await Promise.all([
+        manager.save(creature),
+        inventory.length ? manager.save(inventory) : Promise.resolve(),
+        hotbarSlots.length ? manager.save(hotbarSlots) : Promise.resolve(),
+      ]);
+
+      // 6. Assemble exact getFullState response with 0 extra DB reads
+      const { passwordHash: _omit, ...safePlayer } = player;
+      return {
+        ...safePlayer,
+        inventory,
+        hotbarSlots,
+        creatures: [creature],
+      };
     });
   },
 
@@ -134,29 +205,65 @@ export const playerService = {
     const player = await crud
       .repo()
       .createQueryBuilder("p")
+      .leftJoinAndSelect("p.inventory", "inv")
+      .leftJoinAndSelect("inv.item", "invItem")
+      .leftJoinAndSelect("p.hotbarSlots", "slot")
+      .leftJoinAndSelect("slot.item", "slotItem")
+      .leftJoinAndSelect("p.creatures", "c", "c.releasedAt IS NULL")
+      .leftJoinAndSelect("c.species", "species")
+      .leftJoinAndSelect("c.moves", "cm")
+      .leftJoinAndSelect("cm.move", "move")
       .where("p.email = :login OR p.username = :login", { login: dto.login })
+      .orderBy({
+        "c.partySlot": "ASC",
+        "c.storageSlot": "ASC",
+      })
       .getOne();
 
     if (!player || player.passwordHash !== dto.password) {
-      throw new AppError(401, "INVALID_CREDENTIALS", "Invalid username/email or password");
+      throw new AppError(
+        401,
+        "INVALID_CREDENTIALS",
+        "Invalid username/email or password",
+      );
     }
 
-    await crud.repo().update({ id: player.id }, { lastLoginAt: new Date() });
-    return this.getFullState(player.id);
+    const now = new Date();
+    await crud.repo().update({ id: player.id }, { lastLoginAt: now });
+
+    const { passwordHash: _omit, ...safePlayer } = player;
+    return {
+      ...safePlayer,
+      lastLoginAt: now, // keeps the returned object in sync with the DB update
+    };
   },
 
   async move(id: string, dto: MovePlayerDto) {
     const player = await crud.repo().findOneBy({ id });
     if (!player) throw new AppError(404, "NOT_FOUND", "Player not found");
 
-    const tile = await AppDataSource.getRepository(MapTile).findOneBy({ x: dto.x, y: dto.y });
+    const tile = await AppDataSource.getRepository(MapTile).findOneBy({
+      x: dto.x,
+      y: dto.y,
+    });
     if (!tile || !tile.isWalkable) {
-      throw new AppError(400, "BLOCKED_TILE", "Target tile does not exist or is not walkable");
+      throw new AppError(
+        400,
+        "BLOCKED_TILE",
+        "Target tile does not exist or is not walkable",
+      );
     }
 
-    const blockingNpc = await AppDataSource.getRepository(Npc).findOneBy({ posX: dto.x, posY: dto.y });
+    const blockingNpc = await AppDataSource.getRepository(Npc).findOneBy({
+      posX: dto.x,
+      posY: dto.y,
+    });
     if (blockingNpc) {
-      throw new AppError(409, "NPC_ON_TILE", `Tile is occupied by ${blockingNpc.name}`);
+      throw new AppError(
+        409,
+        "NPC_ON_TILE",
+        `Tile is occupied by ${blockingNpc.name}`,
+      );
     }
 
     await crud.repo().update({ id }, { posX: dto.x, posY: dto.y });
@@ -183,7 +290,9 @@ export const playerService = {
     }
 
     await AppDataSource.getRepository(Creature).save(party);
-    await crud.repo().update({ id }, { respawnX: player.posX, respawnY: player.posY });
+    await crud
+      .repo()
+      .update({ id }, { respawnX: player.posX, respawnY: player.posY });
 
     return { healedCount: party.filter((c) => c.partySlot !== null).length };
   },
