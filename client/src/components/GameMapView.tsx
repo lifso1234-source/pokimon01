@@ -7,7 +7,7 @@ import { useMapControls } from "../hooks/useMapControls";
 import { useWildSpawner } from "../hooks/useWildSpawner";
 import type { Battle, EncounterRule, MapTile, Npc } from "../types/game.types";
 import { renderMapScene } from "../utils/mapRenderer";
-import { MiniMap } from "./miniMap";
+import { MiniMap } from "./MiniMap";
 import { clickRadius } from "../constants/mapConfig";
 
 interface GameMapViewProps {
