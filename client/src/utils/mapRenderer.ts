@@ -17,6 +17,35 @@ interface RenderSceneParams {
   tileMap: Map<string, MapTile>;
   npcs: Npc[];
   spawns: WildSpawn[];
+  onSpriteLoad?: () => void;
+}
+
+const spriteCache = new Map<string, HTMLImageElement | "error">();
+
+function getCachedSprite(
+  url: string | null | undefined,
+  onLoad?: () => void,
+): HTMLImageElement | null {
+  if (!url) return null;
+
+  const cached = spriteCache.get(url);
+  if (cached === "error") return null;
+  if (cached) {
+    return cached.complete && cached.naturalWidth > 0 ? cached : null;
+  }
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    onLoad?.();
+  };
+  img.onerror = () => {
+    spriteCache.set(url, "error");
+  };
+  img.src = url;
+  spriteCache.set(url, img);
+
+  return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
 function drawTerrainDetail(
@@ -115,6 +144,7 @@ export function renderMapScene({
   tileMap,
   npcs,
   spawns,
+  onSpriteLoad,
 }: RenderSceneParams) {
   ctx.clearRect(0, 0, width, height);
 
@@ -154,18 +184,50 @@ export function renderMapScene({
     const row = sp.y - startY;
     if (col < 0 || col >= VIEW_SIZE || row < 0 || row >= VIEW_SIZE) continue;
 
-    const cx = col * TILE_PX + TILE_PX / 2;
-    const cy = row * TILE_PX + TILE_PX / 2;
+    const px = col * TILE_PX;
+    const py = row * TILE_PX;
+    const cx = px + TILE_PX / 2;
+    const cy = py + TILE_PX / 2;
 
-    ctx.fillStyle = "#ef4444";
-    ctx.beginPath();
-    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
-    ctx.fill();
+    const sprite = getCachedSprite(sp.spriteUrl, onSpriteLoad);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(`Lv.${sp.level}`, cx, cy + 3);
+    if (sprite) {
+      // Subtle ground shadow under the Pokémon
+      ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+      ctx.beginPath();
+      ctx.ellipse(cx, py + TILE_PX - 8, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw crisp pixel-art creature sprite
+      const pad = 4;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        sprite,
+        px + pad,
+        py + pad - 2,
+        TILE_PX - pad * 2,
+        TILE_PX - pad * 2,
+      );
+
+      // Compact level pill at bottom of tile
+      ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+      ctx.fillRect(cx - 15, py + TILE_PX - 13, 30, 11);
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`Lv.${sp.level}`, cx, py + TILE_PX - 4);
+    } else {
+      // Fallback red dot while sprite loads or if spriteUrl is empty
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`Lv.${sp.level}`, cx, cy + 3);
+    }
   }
 
   // 3. NPCs
@@ -175,23 +237,39 @@ export function renderMapScene({
     const row = npc.posY - startY;
     if (col < 0 || col >= VIEW_SIZE || row < 0 || row >= VIEW_SIZE) continue;
 
-    const cx = col * TILE_PX + TILE_PX / 2;
-    const cy = row * TILE_PX + TILE_PX / 2;
+    const px = col * TILE_PX;
+    const py = row * TILE_PX;
+    const cx = px + TILE_PX / 2;
+    const cy = py + TILE_PX / 2;
 
-    ctx.fillStyle =
-      npc.role === "healer"
-        ? "#ec4899"
-        : npc.role === "shopkeeper"
-          ? "#eab308"
-          : "#a855f7";
-    ctx.beginPath();
-    ctx.arc(cx, cy, 16, 0, Math.PI * 2);
-    ctx.fill();
+    const npcSprite = getCachedSprite(npc.spriteUrl, onSpriteLoad);
+
+    if (npcSprite) {
+      const pad = 4;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        npcSprite,
+        px + pad,
+        py + pad,
+        TILE_PX - pad * 2,
+        TILE_PX - pad * 2,
+      );
+    } else {
+      ctx.fillStyle =
+        npc.role === "healer"
+          ? "#ec4899"
+          : npc.role === "shopkeeper"
+            ? "#eab308"
+            : "#a855f7";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.fillStyle = "#f8fafc";
     ctx.font = "bold 10px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(npc.name.split(" ")[0], cx, cy - 20);
+    ctx.fillText(npc.name.split(" ")[0], cx, py + 10);
   }
 
   // 4. Player Sprite (Centered)

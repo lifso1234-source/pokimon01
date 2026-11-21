@@ -7,7 +7,7 @@ import type {
   WildSpawn,
 } from "../types/game.types";
 
-export type TileLookup = Map<string, MapTile>
+export type TileLookup = Map<string, MapTile>;
 
 interface UseWildSpawnerParams {
   enabled: boolean;
@@ -73,7 +73,11 @@ export function useWildSpawner({
             if (occupiedByNpc.has(key) || occupiedBySpawn.has(key)) continue;
 
             const tile = tileMapRef.current.get(key);
-            if (tile && tile.isWalkable && SPAWNABLE_TERRAINS.has(tile.terrain)) {
+            if (
+              tile &&
+              tile.isWalkable &&
+              SPAWNABLE_TERRAINS.has(tile.terrain)
+            ) {
               candidates.push(tile);
             }
           }
@@ -109,6 +113,7 @@ export function useWildSpawner({
             type1: encounter.species?.type1 ?? "normal",
             level,
             expiresAt: now + 35_000,
+            spriteUrl: encounter.species?.spriteUrl ?? "",
           },
         ];
       });

@@ -200,4 +200,5 @@ export interface WildSpawn {
   x: number;
   y: number;
   expiresAt: number;
+  spriteUrl: string;
 }

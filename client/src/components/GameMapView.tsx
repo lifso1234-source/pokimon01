@@ -31,6 +31,8 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
   const [npcs, setNpcs] = useState<Npc[]>([]);
   const [encounters, setEncounters] = useState<EncounterRule[]>([]);
 
+  const [spriteTick, setSpriteTick] = useState(0);
+
   const lastSyncedPosRef = useRef<{ x: number; y: number } | null>(null);
   const latestPosRef = useRef<{ x: number; y: number }>({
     x: player?.posX ?? 2,
@@ -95,7 +97,7 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
           .then(() => {
             lastSyncedPosRef.current = { x: cur.x, y: cur.y };
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }, 30_000);
 
@@ -144,8 +146,9 @@ export const GameMapView: React.FC<GameMapViewProps> = ({
       tileMap: tileMapRef.current,
       npcs,
       spawns,
+      onSpriteLoad: () => setSpriteTick((t) => t + 1),
     });
-  }, [player, tilesLoaded, facing, npcs, spawns]);
+  }, [player, tilesLoaded, facing, npcs, spawns, spriteTick]);
 
   if (!player) return null;
 
