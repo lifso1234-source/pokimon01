@@ -1,4 +1,4 @@
-import { axiosClient } from "./axiosClient";
+import { axiosClient, tokenStorage } from "./axiosClient";
 import type {
   Battle,
   EncounterRule,
@@ -10,22 +10,43 @@ import type {
   Species,
 } from "../types/game.types";
 
+interface AuthResponse {
+  token: string;
+  player: PlayerState;
+}
+
 type ListResponse<T> = T[] | { data: T[] };
 const listData = <T>(value: ListResponse<T> | null | undefined): T[] =>
   Array.isArray(value) ? value : (value?.data ?? []);
 
 export const gameApi = {
-  login: async (login: string, password: string): Promise<PlayerState> =>
-    (await axiosClient.post<PlayerState>("/auth/login", { login, password }))
-      .data,
+  login: async (login: string, password: string): Promise<PlayerState> => {
+    const { data } = await axiosClient.post<AuthResponse>("/auth/login", {
+      login,
+      password,
+    });
+    tokenStorage.set(data.token);
+    return data.player;
+  },
+
   register: async (payload: {
     email: string;
     username: string;
     password: string;
     trainerName: string;
     starterSpeciesId?: number;
-  }): Promise<PlayerState> =>
-    (await axiosClient.post<PlayerState>("/auth/register", payload)).data,
+  }): Promise<PlayerState> => {
+    const { data } = await axiosClient.post<AuthResponse>(
+      "/auth/register",
+      payload,
+    );
+    tokenStorage.set(data.token);
+    return data.player;
+  },
+
+  logout: () => {
+    tokenStorage.clear();
+  },
   listPlayers: async (limit = 50): Promise<PlayerState[]> =>
     listData(
       (
