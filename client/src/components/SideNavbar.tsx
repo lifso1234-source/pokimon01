@@ -1,7 +1,7 @@
 ﻿import React from "react";
 import { usePlayer } from "../context/PlayerContext";
 
-export type NavTab = "map" | "inventory";
+export type NavTab = "map" | "inventory" | "pokedex";
 
 interface SideNavbarProps {
   activeTab: NavTab;
@@ -46,6 +46,15 @@ export const SideNavbar: React.FC<SideNavbarProps> = ({ activeTab, onSelectTab }
             }}
           >
             2. Inventory & Slots (1–9)
+          </button>
+          <button
+            onClick={() => onSelectTab("pokedex")}
+            style={{
+              ...styles.navBtn,
+              background: activeTab === "pokedex" ? "#2563eb" : "transparent",
+            }}
+          >
+            3. Pokédex
           </button>
         </nav>
 

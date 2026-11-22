@@ -202,3 +202,30 @@ export interface WildSpawn {
   expiresAt: number;
   spriteUrl: string;
 }
+
+export interface PokedexStat {
+  playerId: string;
+  speciesId: number;
+  timesCaught: number;
+  timesMissed: number;
+  encounters: number;
+  firstSeenAt: string;
+}
+
+export interface CatchHistoryEntry {
+  id: string;
+  playerId: string;
+  speciesId: number;
+  wildLevel: number;
+  outcome: "caught" | "missed";
+  missReason: "broke_free" | "fled" | "knocked_out" | "player_ran" | null;
+  ballsThrown: number;
+  ballItemId: number | null;
+  creatureId: string | null;
+  battleId: string | null;
+  posX: number | null;
+  posY: number | null;
+  createdAt: string;
+  species?: Species;
+  ballItem?: Item | null;
+}

@@ -1,12 +1,14 @@
 import { axiosClient, tokenStorage } from "./axiosClient";
 import type {
   Battle,
+  CatchHistoryEntry,
   EncounterRule,
   Item,
   MapTile,
   Move,
   Npc,
   PlayerState,
+  PokedexStat,
   Species,
 } from "../types/game.types";
 
@@ -194,4 +196,23 @@ export const gameApi = {
     },
   battleFlee: async (battleId: string): Promise<Battle> =>
     (await axiosClient.post<Battle>(`/battles/${battleId}/turn/flee`)).data,
+  getPokedex: async (): Promise<PokedexStat[]> =>
+    listData(
+      (await axiosClient.get<ListResponse<PokedexStat>>("/pokedex")).data,
+    ),
+
+  getCatchHistory: async (params?: {
+    outcome?: "caught" | "missed";
+    speciesId?: number;
+    page?: number;
+    limit?: number;
+  }) =>
+    (
+      await axiosClient.get<{
+        data: CatchHistoryEntry[];
+        total: number;
+        page: number;
+        limit: number;
+      }>("/catch-history", { params })
+    ).data,
 };
