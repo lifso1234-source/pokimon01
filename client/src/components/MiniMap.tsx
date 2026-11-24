@@ -33,8 +33,8 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   tilesLoaded,
   playerX,
   playerY,
-  mapWidth = 280,
-  mapHeight = 175,
+  mapWidth = 500,
+  mapHeight = 300,
   displayWidth = 224,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

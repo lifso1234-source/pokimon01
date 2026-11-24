@@ -27,8 +27,8 @@ const CARDINAL_DIRS = [
 export function useBoats({
   tilesLoaded,
   tileMapRef,
-  mapWidth = 280,
-  mapHeight = 175,
+  mapWidth = 500,
+  mapHeight = 300,
 }: UseBoatsParams) {
   const [boats, setBoats] = useState<Boat[]>([]);
   const [boardedBoatId, setBoardedBoatId] = useState<string | null>(null);

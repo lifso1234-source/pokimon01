@@ -10,6 +10,7 @@ import type {
   PlayerState,
   PokedexStat,
   Species,
+  levelExperience,
 } from "../types/game.types";
 
 interface AuthResponse {
@@ -77,7 +78,7 @@ export const gameApi = {
   listTiles: async (): Promise<MapTile[]> =>
     (
       await axiosClient.get<MapTile[]>("/map/tiles", {
-        params: { limit: 50000 },
+        params: { limit: 150000 },
       })
     ).data,
 
@@ -215,4 +216,7 @@ export const gameApi = {
         limit: number;
       }>("/catch-history", { params })
     ).data,
+
+  allExperienceLevels: async (): Promise<levelExperience[]> =>
+    (await axiosClient.get<levelExperience[]>(`/levels`)).data,
 };

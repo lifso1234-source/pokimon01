@@ -229,3 +229,9 @@ export interface CatchHistoryEntry {
   species?: Species;
   ballItem?: Item | null;
 }
+
+export interface levelExperience {
+  level: number,
+  totalExperience: number,
+  expToNextLevel: number,
+}

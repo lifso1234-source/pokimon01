@@ -43,7 +43,7 @@ export const loginPlayerService = {
       const [starter, spawnTile, starterMoves, starterItems] =
         await Promise.all([
           manager.findOneBy(Species, { id: dto.starterSpeciesId }),
-          manager.findOneBy(MapTile, { x: 0, y: 0 }),
+          manager.findOneBy(MapTile, { x: 200, y: 180 }),
           manager.find(SpeciesMove, {
             where: {
               speciesId: dto.starterSpeciesId,
@@ -77,10 +77,10 @@ export const loginPlayerService = {
         username: dto.username,
         passwordHash,
         trainerName: dto.trainerName,
-        posX: 0,
-        posY: 0,
-        respawnX: 0,
-        respawnY: 0,
+        posX: 180,
+        posY: 100,
+        respawnX: 180,
+        respawnY: 100,
         lastLoginAt: new Date(),
       });
       await manager.save(player);

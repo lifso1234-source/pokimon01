@@ -8,6 +8,7 @@ import npcRoutes from "./npc.routes";
 import playerRoutes from "./player.routes";
 import referenceRoutes from "./reference.routes";
 import catchHistory from "./catchHistory.routes";
+import levelExperience from "./levelExperience.routes"
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use(mapRoutes);
 router.use(battleRoutes);
 router.use(referenceRoutes);
 router.use(catchHistory);
+router.use(levelExperience);
 
 export default router;
